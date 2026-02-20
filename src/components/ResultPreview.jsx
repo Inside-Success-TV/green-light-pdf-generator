@@ -72,6 +72,9 @@ export default function ResultPreview({
   const showName = detectShowName(storyText);
   const isGreenlight = action === "Generate Greenlight PDF Letter";
 
+  // Detect if the response is HTML (Casting Cheat Sheet returns HTML)
+  const isHtml = /^\s*(<(!DOCTYPE|html|head|body|div|p|h[1-6]|table|section))/i.test(storyText);
+
   // Auto-resize textarea
   const textareaRef = useRef(null);
   useEffect(() => {
@@ -241,7 +244,7 @@ export default function ResultPreview({
 
       {/* ── DOCUMENT EDITOR (Markdown or Plain Text) ── */}
       <div
-        className="rounded-xl overflow-hidden relative group bg-white shadow-xl min-h-[60vh] flex flex-col"
+        className="rounded-xl overflow-hidden relative group bg-white shadow-xl min-h-[60vh] max-h-[80vh] flex flex-col"
       >
         <div className="w-full h-8 bg-gray-100 border-b border-gray-200 z-10 flex items-center px-4 gap-2 flex-shrink-0">
             <div className="w-3 h-3 rounded-full bg-red-400/50"></div>
@@ -285,9 +288,14 @@ export default function ResultPreview({
             ref={textareaRef}
             value={storyText}
             onChange={(e) => onManualEdit(e.target.value)}
-            className="w-full h-full p-12 pt-8 resize-none focus:outline-none font-mono text-sm leading-relaxed text-gray-800 bg-white flex-1"
+            className="w-full p-12 pt-8 resize-none focus:outline-none font-mono text-sm leading-relaxed text-gray-800 bg-white flex-1 overflow-y-auto"
             spellCheck="false"
             autoFocus
+          />
+        ) : isHtml ? (
+          <div 
+            className="prose prose-sm max-w-none p-12 pt-8 font-serif text-gray-800 flex-1 overflow-auto"
+            dangerouslySetInnerHTML={{ __html: storyText }}
           />
         ) : (
           <div className="prose prose-sm max-w-none p-12 pt-8 font-serif text-gray-800 flex-1 overflow-auto">

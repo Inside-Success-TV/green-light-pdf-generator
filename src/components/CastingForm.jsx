@@ -104,37 +104,19 @@ export default function CastingForm({ onSubmit, onComplianceCheck, isProcessing,
 
         {/* Buttons Section */}
         <div className="flex flex-col md:flex-row items-center justify-center gap-4">
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-2 relative">
             <button
               type="button"
-              onClick={handleCompliance}
-              disabled={isProcessing || !transcript.trim()}
-              className={cn(
-                "px-8 py-4 rounded-full border border-inside-gold/50 text-inside-gold font-black tracking-widest uppercase flex items-center gap-3 transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed",
-                isCompliant && "bg-inside-gold/10 border-green-500 text-green-500"
-              )}
+              disabled
+              className="px-8 py-4 rounded-full border border-white/10 text-inside-accent/30 font-black tracking-widest uppercase flex items-center gap-3 cursor-not-allowed opacity-50 grayscale relative"
             >
-              {isCompliant ? (
-                <>
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                  Compliance Verified
-                </>
-              ) : (
-                <>
-                  <ShieldCheck className="w-5 h-5" />
-                  Compliance Check
-                </>
-              )}
+              <ShieldCheck className="w-5 h-5" />
+              Compliance Check
+              <span className="absolute -top-2 -right-2 text-[9px] bg-inside-gold/20 text-inside-gold px-2 py-0.5 rounded-full font-black border border-inside-gold/30 tracking-wider">
+                BETA
+              </span>
             </button>
-            {isCompliant && (
-              <button
-                type="button"
-                onClick={() => setShowComplianceReport(!showComplianceReport)}
-                className="text-xs text-inside-gold hover:underline font-bold uppercase tracking-widest mt-1"
-              >
-                {showComplianceReport ? "Hide Report" : "View Compliance Report"}
-              </button>
-            )}
+            <span className="text-[10px] text-inside-accent/30 font-medium">Coming soon</span>
           </div>
 
           <button
