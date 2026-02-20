@@ -28,6 +28,25 @@ function App() {
   const [pdfCreated, setPdfCreated] = useState(false);
   const [isCreatingPdf, setIsCreatingPdf] = useState(false);
   const [isRevamping, setIsRevamping] = useState(false);
+  const [originalTranscript, setOriginalTranscript] = useState("");
+
+  const stripHtml = (html) => {
+    if (!html) return "";
+    // Preserve structure before stripping tags
+    return html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<\/h[1-6]>/gi, "\n\n")
+      .replace(/<div[^>]*>/gi, "")
+      .replace(/<\/div>/gi, "\n")
+      .replace(/<[^>]*>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  };
 
   /* ─────────────────────────────────────────────
      STEP 0: Compliance Check (future)
@@ -73,6 +92,7 @@ function App() {
     setCurrentAction(action);
     setPdfCreated(false);
     setProcessStatus("Cleaning transcript timestamps...");
+    setOriginalTranscript(transcript);
     
     console.log("Action:", action);
 
@@ -139,11 +159,25 @@ function App() {
       console.log('Sending to PDF Webhook:', PDF_WEBHOOK_URL);
       console.log('Story content length:', result?.length);
 
+      const isHtml = /^\s*<(!DOCTYPE|html|head|body|div|p|h[1-6]|table|section)/i.test(result);
+      const cleanedContent = isHtml ? stripHtml(result) : result;
+      
+      // Helper to detect show/client names for n8n classification
+      const firstLine = cleanedContent.split('\n')[0] || "";
+      const showMatch = firstLine.match(/^(.*?)\s+x\s+(.*)$/);
+      const detectedShow = showMatch ? showMatch[1] : (firstLine.includes("Cheat Sheet") ? "Women in Power" : "");
+      const detectedClient = showMatch ? showMatch[2] : "";
+
       const response = await fetch(PDF_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content: result,  // Send the generated story text
+          content: cleanedContent,
+          transcript: originalTranscript,
+          action: currentAction,
+          show_name: detectedShow,
+          client_name: detectedClient,
+          timestamp: new Date().toISOString()
         }),
       });
 
