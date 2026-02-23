@@ -4,6 +4,7 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import CastingForm from './components/CastingForm';
 import ResultPreview from './components/ResultPreview';
 import { cleanTranscript } from './utils/transcript';
+import { stripHtml } from './utils/content';
 
 // Workflow 1: AI story generation — takes transcript, returns the formatted story text
 const STORY_WEBHOOK_URL = import.meta.env.VITE_WEBHOOK_URL || "https://insidesuccess.app.n8n.cloud/webhook/4f4509f0-01a3-4005-baf5-bc5ae07d897c";
@@ -30,23 +31,7 @@ function App() {
   const [isRevamping, setIsRevamping] = useState(false);
   const [originalTranscript, setOriginalTranscript] = useState("");
 
-  const stripHtml = (html) => {
-    if (!html) return "";
-    // Preserve structure before stripping tags
-    return html
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/p>/gi, "\n\n")
-      .replace(/<\/h[1-6]>/gi, "\n\n")
-      .replace(/<div[^>]*>/gi, "")
-      .replace(/<\/div>/gi, "\n")
-      .replace(/<[^>]*>/g, "")
-      .replace(/&nbsp;/g, " ")
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-  };
+
 
   /* ─────────────────────────────────────────────
      STEP 0: Compliance Check (future)
@@ -241,7 +226,7 @@ function App() {
       } catch {
         // Response is plain text — use as-is
       }
-
+      
       setResult(revisedText);
       
     } catch (err) {

@@ -1,7 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCcw, ExternalLink, Download, Tv, FileText, Loader2, CheckCircle2, Sparkles, Send, Eye, Edit3, Wand2 } from 'lucide-react';
+import { RefreshCcw, ExternalLink, Download, Tv, FileText, Loader2, CheckCircle2, Sparkles, Send, Eye, Edit3, Wand2, Bold, Italic, List, Type } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { stripHtml } from '../utils/content';
 
 /* ──────────────────────────────────────────────
    REVAMP STATUS MESSAGES
@@ -71,9 +72,34 @@ export default function ResultPreview({
   const storyText = typeof result === 'string' ? result : '';
   const showName = detectShowName(storyText);
   const isGreenlight = action === "Generate Greenlight PDF Letter";
-
-  // Detect if the response is HTML (Casting Cheat Sheet returns HTML)
+  
+  // Detect if the response is HTML
   const isHtml = /^\s*(<(!DOCTYPE|html|head|body|div|p|h[1-6]|table|section))/i.test(storyText);
+
+  // Apply formatting to selection
+  const applyFormat = (prefix, suffix = "") => {
+    if (!textareaRef.current) return;
+    
+    const start = textareaRef.current.selectionStart;
+    const end = textareaRef.current.selectionEnd;
+    const text = textareaRef.current.value;
+    const selected = text.substring(start, end);
+    const before = text.substring(0, start);
+    const after = text.substring(end);
+    
+    // If we're editing HTML, we should strip it first to be safe, but App.jsx handles it for edits
+    const newText = before + prefix + selected + suffix + after;
+    onManualEdit(newText);
+    
+    // Reset focus and selection
+    setTimeout(() => {
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(
+        start + prefix.length,
+        start + prefix.length + selected.length
+      );
+    }, 0);
+  };
 
   // Auto-resize textarea
   const textareaRef = useRef(null);
@@ -87,7 +113,54 @@ export default function ResultPreview({
   const handlePrint = () => {
     const win = window.open('', '_blank');
     if (!win) return;
-    win.document.write(`<!DOCTYPE html><html><head><title>${showName}</title><style>@page{size:letter;margin:.75in 1in}body{margin:0;padding:40px 60px;white-space:pre-wrap;font-family:Georgia,serif;font-size:12px;line-height:1.7;color:#222;}</style></head><body>${storyText}</body></html>`);
+    
+    // Process formatting for print
+    const lines = storyText.split('\n');
+    let htmlContent = '';
+    
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        htmlContent += '<br/>';
+      } else if (trimmed === trimmed.toUpperCase() && trimmed.length > 5) {
+        htmlContent += `<h1 style="text-align: center; font-size: 24px; margin-bottom: 5px;">${trimmed}</h1>`;
+      } else if (trimmed.startsWith('# ')) {
+        htmlContent += `<h1 style="font-size: 22px; margin-top: 20px;">${trimmed.substring(2)}</h1>`;
+      } else if (trimmed.startsWith('## ')) {
+        htmlContent += `<h2 style="font-size: 18px; margin-top: 15px; color: #4A90E2;">${trimmed.substring(3)}</h2>`;
+      } else if (trimmed.startsWith('•') || trimmed.startsWith('-')) {
+        const text = trimmed.replace(/^[•\-]\s*/, '');
+        htmlContent += `<p style="margin-left: 20px; text-indent: -15px; margin-bottom: 5px;">• ${text}</p>`;
+      } else {
+        htmlContent += `<p style="margin-bottom: 10px;">${trimmed}</p>`;
+      }
+    });
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${showName}</title>
+          <style>
+            @page { size: letter; margin: 0.75in 1in; }
+            body { 
+              margin: 0; 
+              padding: 40px 60px; 
+              font-family: 'Helvetica', 'Arial', sans-serif; 
+              font-size: 11px; 
+              line-height: 1.6; 
+              color: #000; 
+              background: #fff;
+            }
+            h1, h2, h3 { font-weight: bold; margin-bottom: 10px; }
+            p { margin: 0; }
+          </style>
+        </head>
+        <body>
+          ${htmlContent}
+        </body>
+      </html>
+    `);
     win.document.close();
     setTimeout(() => win.print(), 500);
   };
@@ -251,9 +324,52 @@ export default function ResultPreview({
             <div className="w-3 h-3 rounded-full bg-yellow-400/50"></div>
             <div className="w-3 h-3 rounded-full bg-green-400/50"></div>
             <div className="ml-auto text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-              {isRevamping ? "AI Revamping…" : isEditMode ? "Live Editor Mode" : "Preview Mode"}
+              {isRevamping ? "AI Revamping…" : isEditMode ? "VA Editor Mode" : "Preview Mode"}
             </div>
         </div>
+
+        {/* ── RICH EDITOR TOOLBAR ── */}
+        <AnimatePresence>
+          {isEditMode && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center gap-2 "
+            >
+              <button 
+                onClick={() => applyFormat("**", "**")}
+                className="p-2 hover:bg-gray-200 rounded text-gray-600 transition-colors"
+                title="Bold"
+              >
+                <Bold className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => applyFormat("*", "*")}
+                className="p-2 hover:bg-gray-200 rounded text-gray-600 transition-colors"
+                title="Italic"
+              >
+                <Italic className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => applyFormat("### ")}
+                className="p-2 hover:bg-gray-200 rounded text-gray-600 transition-colors"
+                title="Heading"
+              >
+                <Type className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => applyFormat("• ")}
+                className="p-2 hover:bg-gray-200 rounded text-gray-600 transition-colors"
+                title="Bullet List"
+              >
+                <List className="w-4 h-4" />
+              </button>
+              <div className="h-4 w-px bg-gray-300 mx-2" />
+              <span className="text-[10px] text-gray-400 font-bold uppercase">Formatting Helper</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── REVAMP LOADING OVERLAY ── */}
         <AnimatePresence>
@@ -286,7 +402,7 @@ export default function ResultPreview({
         {isEditMode ? (
           <textarea
             ref={textareaRef}
-            value={storyText}
+            value={isHtml ? stripHtml(storyText) : storyText}
             onChange={(e) => onManualEdit(e.target.value)}
             className="w-full p-12 pt-8 resize-none focus:outline-none font-mono text-sm leading-relaxed text-gray-800 bg-white flex-1 overflow-y-auto"
             spellCheck="false"
