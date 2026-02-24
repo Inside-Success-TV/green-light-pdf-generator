@@ -302,7 +302,7 @@ export default function ResultPreview({
                 </p>
               </div>
               <a
-                href="https://drive.google.com/drive/folders/1oQUlu2POPo4WWD07N0duIxamEJPEf0qr"
+                href="https://drive.google.com/drive/folders/1fE2auBlPAqggNSlZcZpnxpPaogh1tTJ7"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 transition-colors text-sm font-bold text-green-400 border border-green-500/30"
