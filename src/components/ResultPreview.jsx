@@ -69,6 +69,12 @@ export default function ResultPreview({
   const [showRevamp, setShowRevamp] = useState(false);
   const [revampInstructions, setRevampInstructions] = useState("");
   const [isEditMode, setIsEditMode] = useState(false); // Default to Preview mode
+  const [showDriveBanner, setShowDriveBanner] = useState(false);
+
+  // Show banner whenever a PDF is created, but keep it visible after button resets
+  useEffect(() => {
+    if (pdfCreated) setShowDriveBanner(true);
+  }, [pdfCreated]);
 
   const storyText = typeof result === 'string' ? result : '';
   const showName = detectShowName(storyText);
@@ -292,7 +298,7 @@ export default function ResultPreview({
 
       {/* ── PDF CREATED SUCCESS BANNER ── */}
       <AnimatePresence>
-        {pdfCreated && (
+        {showDriveBanner && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
