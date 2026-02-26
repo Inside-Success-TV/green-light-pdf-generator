@@ -206,6 +206,8 @@ function App() {
 
       await new Promise((r) => setTimeout(r, 500));
       setPdfCreated(true);
+      // Auto-reset after 4 seconds so the button reactivates
+      setTimeout(() => setPdfCreated(false), 4000);
     } catch (err) {
       console.error("Error creating PDF:", err);
       setError(`Failed to create PDF: ${err.message}`);
