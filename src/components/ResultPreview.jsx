@@ -61,6 +61,7 @@ export default function ResultPreview({
   onCreatePdf, 
   isCreatingPdf, 
   pdfCreated,
+  onResetPdf,
   onRevise,
   isRevamping,
   onManualEdit 
@@ -197,7 +198,11 @@ export default function ResultPreview({
         {/* Right: Action Buttons */}
         <div className="flex items-center gap-3 flex-wrap justify-center xl:justify-end w-full xl:w-auto">
           <button
-            onClick={() => setIsEditMode(!isEditMode)}
+            onClick={() => {
+              const entering = !isEditMode;
+              setIsEditMode(entering);
+              if (entering && onResetPdf) onResetPdf(); // Re-enable PDF button when editing
+            }}
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-white/10 hover:bg-white/5 transition-colors text-sm font-bold text-inside-accent"
           >
             {isEditMode ? <Eye className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
