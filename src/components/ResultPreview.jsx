@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCcw, ExternalLink, Download, Tv, FileText, Loader2, CheckCircle2, Sparkles, Send, Eye, Edit3, Wand2, Bold, Italic, List, Type } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { stripHtml } from '../utils/content';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 /* ──────────────────────────────────────────────
    REVAMP STATUS MESSAGES
@@ -37,18 +39,34 @@ function RevampStatusText() {
 }
 
 /* ──────────────────────────────────────────────
+   DYNAMIC LOGO MAPPING (Matches n8n Workflow)
+   ────────────────────────────────────────────── */
+const LOGO_MAPPING = {
+  'Women in Power': 'https://drive.google.com/uc?export=view&id=1W2cKXSzpABN2cLCOe0vkiVtAZ70f6ecc',
+  'Legacy Makers TV': 'https://drive.google.com/uc?export=view&id=1WLK-uf-W37tuVWhORSmFTTaHxVWkzpZE',
+  'Inside Success Network': 'https://drive.google.com/uc?export=view&id=15tG9ALhkX0k4byezs6-ghsCMG5LOVsvP', // Default
+};
+
+function getLogoForShow(showName) {
+  if (showName.includes('Women in Power')) return LOGO_MAPPING['Women in Power'];
+  if (showName.includes('Legacy Makers')) return LOGO_MAPPING['Legacy Makers TV'];
+  return LOGO_MAPPING['Inside Success Network'];
+}
+
+/* ──────────────────────────────────────────────
    SHOW DETECTION
    ────────────────────────────────────────────── */
-const SHOWS = [
-  'Legacy Makers TV', 'Operation CEO', 'Women in Power',
-  "America's Top Lawyers", 'Masters Of Wealth', 'Next Level CEO',
-  "America's Best Doctors",
-];
-
 function detectShowName(text) {
-  if (!text) return 'INSIDE SUCCESS NETWORK';
-  for (const s of SHOWS) { if (text.includes(s)) return s; }
-  return 'INSIDE SUCCESS NETWORK';
+  if (!text) return 'Inside Success Network';
+  const upperText = text.toUpperCase();
+  if (upperText.includes('WOMEN IN POWER')) return 'Women in Power';
+  if (upperText.includes('LEGACY MAKERS')) return 'Legacy Makers TV';
+  if (upperText.includes('OPERATION CEO')) return 'Operation CEO';
+  if (upperText.includes('NEXT LEVEL CEO')) return 'Next Level CEO';
+  if (upperText.includes("AMERICA'S TOP LAWYERS")) return "America's Top Lawyers";
+  if (upperText.includes('MASTERS OF WEALTH')) return 'Masters Of Wealth';
+  if (upperText.includes("AMERICA'S BEST DOCTORS")) return "America's Best Doctors";
+  return 'Inside Success Network';
 }
 
 /* ──────────────────────────────────────────────
@@ -66,10 +84,10 @@ export default function ResultPreview({
   isRevamping,
   onManualEdit 
 }) {
-  const [showRevamp, setShowRevamp] = useState(false);
   const [revampInstructions, setRevampInstructions] = useState("");
-  const [isEditMode, setIsEditMode] = useState(false); // Default to Preview mode
+  const [isEditMode, setIsEditMode] = useState(true); // Default to Edit (Raw Editor) mode
   const [showDriveBanner, setShowDriveBanner] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   // Show banner whenever a PDF is created, but keep it visible after button resets
   useEffect(() => {
@@ -110,6 +128,8 @@ export default function ResultPreview({
 
   // Auto-resize textarea
   const textareaRef = useRef(null);
+  const editorContainerRef = useRef(null);
+
   useEffect(() => {
     if (isEditMode && textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -117,59 +137,41 @@ export default function ResultPreview({
     }
   }, [storyText, isEditMode]);
 
-  const handlePrint = () => {
-    const win = window.open('', '_blank');
-    if (!win) return;
-    
-    // Process formatting for print
-    const lines = storyText.split('\n');
-    let htmlContent = '';
-    
-    lines.forEach(line => {
-      const trimmed = line.trim();
-      if (!trimmed) {
-        htmlContent += '<br/>';
-      } else if (trimmed === trimmed.toUpperCase() && trimmed.length > 5) {
-        htmlContent += `<h1 style="text-align: center; font-size: 24px; margin-bottom: 5px;">${trimmed}</h1>`;
-      } else if (trimmed.startsWith('# ')) {
-        htmlContent += `<h1 style="font-size: 22px; margin-top: 20px;">${trimmed.substring(2)}</h1>`;
-      } else if (trimmed.startsWith('## ')) {
-        htmlContent += `<h2 style="font-size: 18px; margin-top: 15px; color: #4A90E2;">${trimmed.substring(3)}</h2>`;
-      } else if (trimmed.startsWith('•') || trimmed.startsWith('-')) {
-        const text = trimmed.replace(/^[•\-]\s*/, '');
-        htmlContent += `<p style="margin-left: 20px; text-indent: -15px; margin-bottom: 5px;">• ${text}</p>`;
-      } else {
-        htmlContent += `<p style="margin-bottom: 10px;">${trimmed}</p>`;
-      }
-    });
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    try {
+      const element = editorContainerRef.current;
+      if (!element) return;
 
-    win.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>${showName}</title>
-          <style>
-            @page { size: letter; margin: 0.75in 1in; }
-            body { 
-              margin: 0; 
-              padding: 40px 60px; 
-              font-family: 'Helvetica', 'Arial', sans-serif; 
-              font-size: 11px; 
-              line-height: 1.6; 
-              color: #000; 
-              background: #fff;
-            }
-            h1, h2, h3 { font-weight: bold; margin-bottom: 10px; }
-            p { margin: 0; }
-          </style>
-        </head>
-        <body>
-          ${htmlContent}
-        </body>
-      </html>
-    `);
-    win.document.close();
-    setTimeout(() => win.print(), 500);
+      // Hide the editor toolbar and other UI elements temporarily for capture if needed
+      // But we'll just capture the content area
+      const contentArea = element.querySelector('.content-capture-area');
+      
+      const canvas = await html2canvas(contentArea, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'px',
+        format: 'letter'
+      });
+
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`${showName.replace(/\s+/g, '_')}_${isGreenlight ? 'Greenlight' : 'CheatSheet'}.pdf`);
+    } catch (err) {
+      console.error("PDF Download failed:", err);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
   };
 
   const handleRevampSubmit = (e) => {
@@ -177,7 +179,6 @@ export default function ResultPreview({
     if (!revampInstructions.trim()) return;
     onRevise(revampInstructions, action);
     setRevampInstructions("");
-    setShowRevamp(false);
   };
 
   return (
@@ -203,31 +204,29 @@ export default function ResultPreview({
 
         {/* Right: Action Buttons */}
         <div className="flex items-center gap-3 flex-wrap justify-center xl:justify-end w-full xl:w-auto">
+          {/* OPEN IN DRIVE - Always visible */}
+          <a
+            href="https://drive.google.com/drive/folders/1fE2auBlPAqggNSlZcZpnxpPaogh1tTJ7"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-inside-gold/30 bg-inside-gold/10 hover:bg-inside-gold/20 transition-all text-sm font-bold text-inside-gold"
+          >
+            <ExternalLink className="w-4 h-4" />
+            See Approved PDFs In Drive
+          </a>
+
           <button
             onClick={() => {
               const entering = !isEditMode;
               setIsEditMode(entering);
-              if (entering && onResetPdf) onResetPdf(); // Re-enable PDF button when editing
+              if (entering && onResetPdf) onResetPdf(); // Re-enable PDF button (n8n) when editing
             }}
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-white/10 hover:bg-white/5 transition-colors text-sm font-bold text-inside-accent"
           >
             {isEditMode ? <Eye className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
-            {isEditMode ? "Preview Mode" : "Edit Mode"}
+            {isEditMode ? "Styled Preview" : "Raw Editor"}
           </button>
 
-          <button
-            onClick={() => setShowRevamp(!showRevamp)}
-            disabled={isRevamping}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg border transition-all text-sm font-bold ${
-              showRevamp 
-                ? "bg-inside-gold/20 border-inside-gold text-inside-gold" 
-                : "border-inside-accent/20 hover:bg-white/5 text-inside-accent"
-            }`}
-          >
-            <Sparkles className="w-4 h-4" />
-            AI Revamp
-          </button>
-          
           <button
             onClick={onReset}
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-white/10 hover:bg-white/5 transition-colors text-sm font-bold text-inside-accent"
@@ -236,15 +235,8 @@ export default function ResultPreview({
             Start Over
           </button>
 
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-white/10 hover:bg-white/5 transition-colors text-sm font-bold text-inside-accent"
-          >
-            <Download className="w-4 h-4" />
-            Print
-          </button>
 
-          {/* CREATE PDF */}
+          {/* SAVE TO DRIVE */}
           <button
             onClick={onCreatePdf}
             disabled={isCreatingPdf || pdfCreated}
@@ -255,46 +247,15 @@ export default function ResultPreview({
             }`}
           >
             {isCreatingPdf ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Creating PDF...</>
+              <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</>
             ) : pdfCreated ? (
-              <><CheckCircle2 className="w-4 h-4" /> PDF Created!</>
+              <><CheckCircle2 className="w-4 h-4" /> Sent!</>
             ) : (
-              <><FileText className="w-4 h-4" /> Create PDF</>
+              <><FileText className="w-4 h-4" /> Send My Approved PDF</>
             )}
           </button>
         </div>
       </div>
-
-      {/* ── AI REVAMP PANEL ── */}
-      <AnimatePresence>
-        {showRevamp && (
-          <motion.div
-            initial={{ opacity: 0, height: 0, y: -20 }}
-            animate={{ opacity: 1, height: 'auto', y: 0 }}
-            exit={{ opacity: 0, height: 0, y: -20 }}
-            className="overflow-hidden"
-          >
-             <form onSubmit={handleRevampSubmit} className="premium-card p-2 flex items-center gap-2 bg-inside-gold/5 border-inside-gold/30">
-               <input 
-                 type="text" 
-                 value={revampInstructions}
-                 onChange={(e) => setRevampInstructions(e.target.value)}
-                 placeholder="Examples: 'Make it more persuasive', 'Shorten the intro', 'Fix the formatting'..."
-                 className="flex-1 bg-transparent border-none focus:ring-0 text-white placeholder-inside-accent/40 font-medium px-4"
-                 autoFocus
-               />
-               <button 
-                 type="submit"
-                 disabled={!revampInstructions.trim() || isRevamping}
-                 className="bg-inside-gold text-inside-dark px-6 py-2 rounded-lg font-bold hover:bg-inside-gold/90 disabled:opacity-50 flex items-center gap-2 transition-all"
-               >
-                 {isRevamping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                 Revise
-               </button>
-             </form>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* ── PDF CREATED SUCCESS BANNER ── */}
       <AnimatePresence>
@@ -309,18 +270,15 @@ export default function ResultPreview({
               <div className="flex items-center gap-3">
                 <CheckCircle2 className="w-5 h-5 text-green-400" />
                 <p className="text-sm font-bold text-green-400">
-                  Google Doc created successfully and saved to Drive!
+                  PDF sent to Google Drive successfully!
                 </p>
               </div>
-              <a
-                href="https://drive.google.com/drive/folders/1fE2auBlPAqggNSlZcZpnxpPaogh1tTJ7"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 transition-colors text-sm font-bold text-green-400 border border-green-500/30"
+              <button 
+                onClick={() => setShowDriveBanner(false)}
+                className="text-green-400/60 hover:text-green-400 text-xs font-bold"
               >
-                <ExternalLink className="w-4 h-4" />
-                Open in Drive
-              </a>
+                Dismiss
+              </button>
             </div>
           </motion.div>
         )}
@@ -328,6 +286,7 @@ export default function ResultPreview({
 
       {/* ── DOCUMENT EDITOR (Markdown or Plain Text) ── */}
       <div
+        ref={editorContainerRef}
         className="rounded-xl overflow-hidden relative group bg-white shadow-xl min-h-[60vh] max-h-[80vh] flex flex-col"
       >
         <div className="w-full h-8 bg-gray-100 border-b border-gray-200 z-10 flex items-center px-4 gap-2 flex-shrink-0">
@@ -335,13 +294,37 @@ export default function ResultPreview({
             <div className="w-3 h-3 rounded-full bg-yellow-400/50"></div>
             <div className="w-3 h-3 rounded-full bg-green-400/50"></div>
             <div className="ml-auto text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-              {isRevamping ? "AI Revamping…" : isEditMode ? "VA Editor Mode" : "Preview Mode"}
+              {isRevamping ? "AI Revamping…" : isEditMode ? "Raw Editor Mode" : "Styled Preview Mode"}
             </div>
+        </div>
+
+        {/* Persistent AI Chat Header (Moved to top) */}
+        <div className="border-b border-gray-100 bg-gray-50/50 p-4">
+          <form onSubmit={handleRevampSubmit} className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl p-1.5 shadow-sm focus-within:border-inside-gold/50 transition-colors">
+            <div className="pl-3 text-inside-gold">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <input 
+              type="text" 
+              value={revampInstructions}
+              onChange={(e) => setRevampInstructions(e.target.value)}
+              placeholder="Ask AI to refine this: 'Make it warmer', 'Better structure', 'Fix errors'..."
+              className="flex-1 bg-transparent border-none focus:ring-0 text-sm py-2 text-gray-700 placeholder:text-gray-400"
+            />
+            <button 
+              type="submit"
+              disabled={!revampInstructions.trim() || isRevamping}
+              className="bg-inside-gold text-inside-dark px-4 py-2 rounded-lg text-xs font-black hover:bg-inside-gold/90 disabled:opacity-50 flex items-center gap-2 transition-all uppercase tracking-tighter"
+            >
+              {isRevamping ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+              Refine with AI
+            </button>
+          </form>
         </div>
 
         {/* ── RICH EDITOR TOOLBAR ── */}
         <AnimatePresence>
-          {isEditMode && (
+          {isEditMode && !isRevamping && (
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -391,51 +374,58 @@ export default function ResultPreview({
               exit={{ opacity: 0 }}
               className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900/90 via-gray-800/95 to-gray-900/90 backdrop-blur-sm rounded-xl"
             >
-              {/* Pulsing glow ring */}
               <div className="relative mb-6">
                 <div className="absolute inset-0 w-20 h-20 rounded-full bg-inside-gold/20 animate-ping" />
                 <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-inside-gold/30 to-inside-gold/10 border-2 border-inside-gold/40 flex items-center justify-center">
                   <Wand2 className="w-8 h-8 text-inside-gold animate-pulse" />
                 </div>
               </div>
-
-              {/* Spinning loader */}
               <Loader2 className="w-6 h-6 text-inside-gold animate-spin mb-4" />
-
-              {/* Rotating status messages */}
               <RevampStatusText />
-
               <p className="text-xs text-gray-500 mt-3">This may take 30–60 seconds</p>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {isEditMode ? (
-          <textarea
-            ref={textareaRef}
-            value={isHtml ? stripHtml(storyText) : storyText}
-            onChange={(e) => onManualEdit(e.target.value)}
-            className="w-full p-12 pt-8 resize-none focus:outline-none font-mono text-sm leading-relaxed text-gray-800 bg-white flex-1 overflow-y-auto"
-            spellCheck="false"
-            autoFocus
-          />
-        ) : isHtml ? (
-          <div 
-            className="prose prose-sm max-w-none p-12 pt-8 font-serif text-gray-800 flex-1 overflow-auto"
-            dangerouslySetInnerHTML={{ __html: storyText }}
-          />
-        ) : (
-          <div className="prose prose-sm max-w-none p-12 pt-8 font-serif text-gray-800 flex-1 overflow-auto">
-            <ReactMarkdown>{storyText}</ReactMarkdown>
+        <div className="flex-1 overflow-y-auto content-capture-area bg-white">
+          {/* Document Content Area */}
+          <div className="max-w-[1000px] mx-auto px-8 py-10">
+            {isEditMode ? (
+              <textarea
+                ref={textareaRef}
+                value={isHtml ? stripHtml(storyText) : storyText}
+                onChange={(e) => onManualEdit(e.target.value)}
+                className="w-full resize-none focus:outline-none font-mono text-sm leading-relaxed text-gray-800 bg-white min-h-[50vh]"
+                spellCheck="false"
+                autoFocus
+              />
+            ) : (
+              <div className="prose prose-slate max-w-none 
+                prose-headings:text-gray-900 prose-headings:font-bold
+                prose-h1:text-center prose-h1:text-[21px] prose-h1:mb-2
+                prose-h2:text-[17px] prose-h2:mt-6 prose-h2:mb-2
+                prose-p:text-[16px] prose-p:leading-relaxed prose-p:text-gray-700
+                prose-li:text-[16px] prose-li:text-gray-700
+                prose-hr:border-gray-200 prose-hr:my-4
+                font-serif"
+              >
+                {/* Custom Divider logic if we want to match n8n's line below title */}
+                <ReactMarkdown 
+                  components={{
+                    h1: ({node, ...props}) => (
+                      <>
+                        <h1 {...props} />
+                        <hr className="border-t border-gray-200 mt-2 mb-8" />
+                      </>
+                    )
+                  }}
+                >
+                  {storyText}
+                </ReactMarkdown>
+              </div>
+            )}
           </div>
-        )}
-        
-        {/* Hover Hint */}
-        {!isEditMode && !isRevamping && (
-          <div className="absolute bottom-4 right-4 text-xs text-gray-400 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-            Click "Edit Mode" to modify text
-          </div>
-        )}
+        </div>
       </div>
     </motion.div>
   );

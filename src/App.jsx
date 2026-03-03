@@ -154,7 +154,7 @@ function App() {
   const handleCreatePdf = async () => {
     setIsCreatingPdf(true);
     setError(null);
-    setProcessStatus("Creating Google Doc...");
+    setProcessStatus("Generating Approved PDF...");
 
     try {
       console.log("Sending to PDF Webhook:", PDF_WEBHOOK_URL);
