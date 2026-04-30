@@ -39,6 +39,7 @@ export const stripHtml = (html) => {
 
 const OUTCOME_DISCLAIMER_PATTERN =
   /We do not guarantee exact outcomes\s*[\u002d\u2013\u2014]\s*results may vary!?/i;
+const PDF_DISCLAIMER_GUARD = "\u2060".repeat(80);
 
 /**
  * Remove bold formatting from the standard outcome disclaimer only.
@@ -62,4 +63,18 @@ export const unboldOutcomeDisclaimer = (content) => {
       ),
       "$1",
     );
+};
+
+/**
+ * The PDF webhook applies its own formatting after receiving plain text.
+ * Add invisible word-joiners only in the PDF payload so the disclaimer does
+ * not get detected as a short heading while keeping the visible output intact.
+ */
+export const preparePdfContent = (content) => {
+  const normalizedContent = unboldOutcomeDisclaimer(content);
+
+  return normalizedContent.replace(
+    new RegExp(`(${OUTCOME_DISCLAIMER_PATTERN.source})(?!${PDF_DISCLAIMER_GUARD})`, "gi"),
+    `$1${PDF_DISCLAIMER_GUARD}`,
+  );
 };

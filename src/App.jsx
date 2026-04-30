@@ -4,7 +4,11 @@ import { Loader2, AlertCircle } from "lucide-react";
 import CastingForm from "./components/CastingForm";
 import ResultPreview from "./components/ResultPreview";
 import { cleanTranscript } from "./utils/transcript";
-import { stripHtml, unboldOutcomeDisclaimer } from "./utils/content";
+import {
+  preparePdfContent,
+  stripHtml,
+  unboldOutcomeDisclaimer,
+} from "./utils/content";
 
 // Workflow 1: AI story generation — takes transcript, returns the formatted story text
 const STORY_WEBHOOK_URL =
@@ -164,7 +168,7 @@ function App() {
         /^\s*<(!DOCTYPE|html|head|body|div|p|h[1-6]|table|section)/i.test(
           result,
         );
-      const cleanedContent = unboldOutcomeDisclaimer(
+      const cleanedContent = preparePdfContent(
         isHtml ? stripHtml(result) : result,
       );
 
