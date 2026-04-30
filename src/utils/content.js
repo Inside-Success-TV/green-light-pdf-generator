@@ -36,3 +36,30 @@ export const stripHtml = (html) => {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 };
+
+const OUTCOME_DISCLAIMER_PATTERN =
+  /We do not guarantee exact outcomes\s*[\u002d\u2013\u2014]\s*results may vary!?/i;
+
+/**
+ * Remove bold formatting from the standard outcome disclaimer only.
+ * Other markdown/HTML bold content is intentionally preserved.
+ */
+export const unboldOutcomeDisclaimer = (content) => {
+  if (!content) return "";
+
+  return content
+    .replace(
+      new RegExp(
+        String.raw`(?:\*\*|__)\s*(${OUTCOME_DISCLAIMER_PATTERN.source})\s*(?:\*\*|__)`,
+        "gi",
+      ),
+      "$1",
+    )
+    .replace(
+      new RegExp(
+        String.raw`<\s*(?:strong|b)\s*>\s*(${OUTCOME_DISCLAIMER_PATTERN.source})\s*<\s*\/\s*(?:strong|b)\s*>`,
+        "gi",
+      ),
+      "$1",
+    );
+};

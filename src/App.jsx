@@ -4,7 +4,7 @@ import { Loader2, AlertCircle } from "lucide-react";
 import CastingForm from "./components/CastingForm";
 import ResultPreview from "./components/ResultPreview";
 import { cleanTranscript } from "./utils/transcript";
-import { stripHtml } from "./utils/content";
+import { stripHtml, unboldOutcomeDisclaimer } from "./utils/content";
 
 // Workflow 1: AI story generation — takes transcript, returns the formatted story text
 const STORY_WEBHOOK_URL =
@@ -137,7 +137,7 @@ function App() {
 
       await new Promise((r) => setTimeout(r, 600));
 
-      setResult(storyText);
+      setResult(unboldOutcomeDisclaimer(storyText));
     } catch (err) {
       console.error("Error generating story:", err);
       setError(`Failed to generate document: ${err.message}`);
@@ -164,7 +164,9 @@ function App() {
         /^\s*<(!DOCTYPE|html|head|body|div|p|h[1-6]|table|section)/i.test(
           result,
         );
-      const cleanedContent = isHtml ? stripHtml(result) : result;
+      const cleanedContent = unboldOutcomeDisclaimer(
+        isHtml ? stripHtml(result) : result,
+      );
 
       // Helper to detect show/client names for n8n classification
       const firstLine = cleanedContent.split("\n")[0] || "";
@@ -263,7 +265,7 @@ function App() {
         // Response is plain text — use as-is
       }
 
-      setResult(revisedText);
+      setResult(unboldOutcomeDisclaimer(revisedText));
       setPdfCreated(false); // Content changed — allow creating a new PDF
     } catch (err) {
       console.error("Error revamping story:", err);
@@ -341,7 +343,7 @@ function App() {
                 onResetPdf={() => setPdfCreated(false)}
                 onRevise={handleRevise}
                 isRevamping={isRevamping}
-                onManualEdit={setResult}
+                onManualEdit={(value) => setResult(unboldOutcomeDisclaimer(value))}
               />
             </div>
           )}
