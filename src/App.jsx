@@ -40,6 +40,9 @@ function App() {
   const [isCreatingPdf, setIsCreatingPdf] = useState(false);
   const [isRevamping, setIsRevamping] = useState(false);
   const [originalTranscript, setOriginalTranscript] = useState("");
+  const [drafts, setDrafts] = useState([]);
+  const [activeDraftIndex, setActiveDraftIndex] = useState(0);
+  const [pdfCreatedByDraft, setPdfCreatedByDraft] = useState({});
 
   /* ─────────────────────────────────────────────
      STEP 0: Compliance Check (future)
@@ -79,11 +82,14 @@ function App() {
      STEP 1: Generate Story (Workflow 1)
      Sends transcript → gets formatted story text
      ───────────────────────────────────────────── */
-  const handleGenerate = async ({ transcript, action }) => {
+  const handleGenerate = async ({ transcript, action, multiClient }) => {
     setIsProcessing(true);
     setError(null);
     setCurrentAction(action);
     setPdfCreated(false);
+    setPdfCreatedByDraft({});
+    setDrafts([]);
+    setActiveDraftIndex(0);
     setProcessStatus("Cleaning transcript timestamps...");
     setOriginalTranscript(transcript);
 
@@ -100,48 +106,101 @@ function App() {
     setProcessStatus("AI is analyzing story arcs...");
 
     try {
-      console.log("Sending to Story Webhook:", STORY_WEBHOOK_URL);
+      const multiClientEnabled =
+        action === "Generate Greenlight PDF Letter" && multiClient?.enabled;
+      const letterCount = multiClientEnabled ? Number(multiClient.letterCount) || 1 : 1;
+      const clientNames = multiClient?.clientNames || [];
+      const storyRequests =
+        multiClientEnabled && letterCount === 2
+          ? [0, 1].map((index) => ({
+              label: clientNames[index] || `Client ${index + 1}`,
+              targetClientName: clientNames[index] || "",
+              targetClientPosition: index + 1,
+            }))
+          : [
+              {
+                label:
+                  multiClientEnabled && multiClient.targetClientName
+                    ? multiClient.targetClientName
+                    : "Document",
+                targetClientName: multiClientEnabled
+                  ? multiClient.targetClientName || ""
+                  : "",
+                targetClientPosition: 1,
+              },
+            ];
 
-      const response = await fetch(STORY_WEBHOOK_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: cleaned,
-          action: action,
-        }),
-      });
+      const generatedDrafts = [];
 
-      console.log("Response status:", response.status);
-
-      if (!response.ok) {
-        const errorText = await response
-          .clone()
-          .text()
-          .catch(() => "");
-        if (errorText.includes("not registered for POST")) {
-          throw new Error(
-            "n8n Configuration Error: Webhook is set to GET. Change to POST.",
-          );
-        }
-        if (errorText.includes("Unused Respond to Webhook")) {
-          throw new Error(
-            'n8n Configuration Error: Set Webhook "Respond" to "Using Respond to Webhook Node".',
-          );
-        }
-        throw new Error(
-          `Server responded with ${response.status}: ${errorText.substring(0, 200)}`,
+      for (const [index, draftRequest] of storyRequests.entries()) {
+        setProcessStatus(
+          storyRequests.length > 1
+            ? `AI is generating preview ${index + 1} of ${storyRequests.length}...`
+            : "AI is analyzing story arcs...",
         );
+
+        console.log("Sending to Story Webhook:", STORY_WEBHOOK_URL);
+
+        const response = await fetch(STORY_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: cleaned,
+            action: action,
+            multi_client: Boolean(multiClientEnabled),
+            multi_client_letter_count: letterCount,
+            target_client_name: draftRequest.targetClientName,
+            target_client_position: draftRequest.targetClientPosition,
+            client_names: clientNames.filter(Boolean),
+          }),
+        });
+
+        console.log("Response status:", response.status);
+
+        if (!response.ok) {
+          const errorText = await response
+            .clone()
+            .text()
+            .catch(() => "");
+          if (errorText.includes("not registered for POST")) {
+            throw new Error(
+              "n8n Configuration Error: Webhook is set to GET. Change to POST.",
+            );
+          }
+          if (errorText.includes("Unused Respond to Webhook")) {
+            throw new Error(
+              'n8n Configuration Error: Set Webhook "Respond" to "Using Respond to Webhook Node".',
+            );
+          }
+          throw new Error(
+            `Server responded with ${response.status}: ${errorText.substring(0, 200)}`,
+          );
+        }
+
+        // Workflow 1 returns the generated story as text
+        const storyText = await response.text();
+        console.log("Story response length:", storyText.length);
+
+        generatedDrafts.push({
+          id: `${Date.now()}-${index}`,
+          label: draftRequest.label,
+          content: unboldOutcomeDisclaimer(storyText),
+          metadata: {
+            multiClient: Boolean(multiClientEnabled),
+            letterCount,
+            targetClientName: draftRequest.targetClientName,
+            targetClientPosition: draftRequest.targetClientPosition,
+            clientNames,
+          },
+        });
       }
 
       setProcessStatus("Story generated! Loading preview...");
 
-      // Workflow 1 returns the generated story as text
-      const storyText = await response.text();
-      console.log("Story response length:", storyText.length);
-
       await new Promise((r) => setTimeout(r, 600));
 
-      setResult(unboldOutcomeDisclaimer(storyText));
+      setDrafts(generatedDrafts);
+      setResult(generatedDrafts[0]?.content || "");
     } catch (err) {
       console.error("Error generating story:", err);
       setError(`Failed to generate document: ${err.message}`);
@@ -191,6 +250,13 @@ function App() {
           action: currentAction,
           show_name: detectedShow,
           client_name: detectedClient,
+          multi_client: Boolean(drafts[activeDraftIndex]?.metadata?.multiClient),
+          target_client_name:
+            drafts[activeDraftIndex]?.metadata?.targetClientName || detectedClient,
+          target_client_position:
+            drafts[activeDraftIndex]?.metadata?.targetClientPosition || 1,
+          multi_client_letter_count:
+            drafts[activeDraftIndex]?.metadata?.letterCount || 1,
           timestamp: new Date().toISOString(),
         }),
       });
@@ -212,8 +278,18 @@ function App() {
 
       await new Promise((r) => setTimeout(r, 500));
       setPdfCreated(true);
+      setPdfCreatedByDraft((current) => ({
+        ...current,
+        [activeDraftIndex]: true,
+      }));
       // Auto-reset after 4 seconds so the button reactivates
-      setTimeout(() => setPdfCreated(false), 4000);
+      setTimeout(() => {
+        setPdfCreated(false);
+        setPdfCreatedByDraft((current) => ({
+          ...current,
+          [activeDraftIndex]: false,
+        }));
+      }, 4000);
     } catch (err) {
       console.error("Error creating PDF:", err);
       setError(`Failed to create PDF: ${err.message}`);
@@ -270,7 +346,18 @@ function App() {
       }
 
       setResult(unboldOutcomeDisclaimer(revisedText));
+      setDrafts((current) =>
+        current.map((draft, index) =>
+          index === activeDraftIndex
+            ? { ...draft, content: unboldOutcomeDisclaimer(revisedText) }
+            : draft,
+        ),
+      );
       setPdfCreated(false); // Content changed — allow creating a new PDF
+      setPdfCreatedByDraft((current) => ({
+        ...current,
+        [activeDraftIndex]: false,
+      }));
     } catch (err) {
       console.error("Error revamping story:", err);
       // Log full error details for debugging
@@ -292,7 +379,10 @@ function App() {
     setIsCompliant(false);
     setComplianceSummary(null);
     setPdfCreated(false);
+    setPdfCreatedByDraft({});
     setIsCreatingPdf(false);
+    setDrafts([]);
+    setActiveDraftIndex(0);
   };
 
   return (
@@ -340,14 +430,42 @@ function App() {
               <ResultPreview
                 result={result || ""}
                 action={currentAction}
+                drafts={drafts}
+                activeDraftIndex={activeDraftIndex}
+                onSelectDraft={(index) => {
+                  setActiveDraftIndex(index);
+                  setResult(drafts[index]?.content || "");
+                  setPdfCreated(Boolean(pdfCreatedByDraft[index]));
+                }}
                 onReset={reset}
                 onCreatePdf={handleCreatePdf}
                 isCreatingPdf={isCreatingPdf}
-                pdfCreated={pdfCreated}
-                onResetPdf={() => setPdfCreated(false)}
+                pdfCreated={Boolean(pdfCreatedByDraft[activeDraftIndex]) || pdfCreated}
+                onResetPdf={() => {
+                  setPdfCreated(false);
+                  setPdfCreatedByDraft((current) => ({
+                    ...current,
+                    [activeDraftIndex]: false,
+                  }));
+                }}
                 onRevise={handleRevise}
                 isRevamping={isRevamping}
-                onManualEdit={(value) => setResult(unboldOutcomeDisclaimer(value))}
+                onManualEdit={(value) => {
+                  const cleanValue = unboldOutcomeDisclaimer(value);
+                  setResult(cleanValue);
+                  setDrafts((current) =>
+                    current.map((draft, index) =>
+                      index === activeDraftIndex
+                        ? { ...draft, content: cleanValue }
+                        : draft,
+                    ),
+                  );
+                  setPdfCreated(false);
+                  setPdfCreatedByDraft((current) => ({
+                    ...current,
+                    [activeDraftIndex]: false,
+                  }));
+                }}
               />
             </div>
           )}

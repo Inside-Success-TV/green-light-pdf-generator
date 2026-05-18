@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, FileText, Layout, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Sparkles, FileText, Layout, ArrowRight, ShieldCheck, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -12,6 +12,11 @@ export default function CastingForm({ onSubmit, onComplianceCheck, isProcessing,
   const [transcript, setTranscript] = useState("");
   const [action, setAction] = useState("Generate Greenlight PDF Letter");
   const [showComplianceReport, setShowComplianceReport] = useState(false);
+  const [isMultiClient, setIsMultiClient] = useState(false);
+  const [letterCount, setLetterCount] = useState(2);
+  const [targetClientName, setTargetClientName] = useState("");
+  const [clientOneName, setClientOneName] = useState("");
+  const [clientTwoName, setClientTwoName] = useState("");
 
   const actions = [
     {
@@ -28,10 +33,30 @@ export default function CastingForm({ onSubmit, onComplianceCheck, isProcessing,
     }
   ];
 
+  const isGreenlight = action === "Generate Greenlight PDF Letter";
+  const requiresTargetClientName = isGreenlight && isMultiClient && letterCount === 1;
+  const canSubmit =
+    transcript.trim() &&
+    (!requiresTargetClientName || targetClientName.trim());
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!transcript.trim()) return;
-    onSubmit({ transcript, action });
+    if (!canSubmit) return;
+    onSubmit({
+      transcript,
+      action,
+      multiClient: isGreenlight
+        ? {
+            enabled: isMultiClient,
+            letterCount,
+            targetClientName: targetClientName.trim(),
+            clientNames:
+              letterCount === 2
+                ? [clientOneName.trim(), clientTwoName.trim()]
+                : [targetClientName.trim()],
+          }
+        : { enabled: false },
+    });
   };
 
   const handleCompliance = () => {
@@ -61,7 +86,12 @@ export default function CastingForm({ onSubmit, onComplianceCheck, isProcessing,
             <button
               key={act.id}
               type="button"
-              onClick={() => setAction(act.id)}
+              onClick={() => {
+                setAction(act.id);
+                if (act.id !== "Generate Greenlight PDF Letter") {
+                  setIsMultiClient(false);
+                }
+              }}
               className={cn(
                 "premium-card p-6 text-left transition-all duration-300 group relative overflow-hidden",
                 action === act.id 
@@ -90,6 +120,119 @@ export default function CastingForm({ onSubmit, onComplianceCheck, isProcessing,
             </button>
           ))}
         </div>
+
+        {isGreenlight && (
+          <div className="premium-card p-6 space-y-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-lg bg-white/5 text-inside-gold">
+                  <Users className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Multi-client transcript</h3>
+                  <p className="text-sm text-inside-accent/50">
+                    Use only when one Zoom transcript contains more than one client.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isMultiClient}
+                onClick={() => setIsMultiClient((value) => !value)}
+                className={cn(
+                  "relative h-8 w-16 rounded-full border transition-colors flex-shrink-0",
+                  isMultiClient
+                    ? "bg-inside-gold border-inside-gold"
+                    : "bg-white/10 border-white/15"
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-1 h-6 w-6 rounded-full bg-white transition-transform",
+                    isMultiClient ? "translate-x-8" : "translate-x-1"
+                  )}
+                />
+              </button>
+            </div>
+
+            <AnimatePresence>
+              {isMultiClient && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="space-y-5 border-t border-white/10 pt-5">
+                    <div>
+                      <label className="block text-xs font-black uppercase tracking-widest text-inside-gold mb-3">
+                        How many Greenlight letters?
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[1, 2].map((count) => (
+                          <button
+                            key={count}
+                            type="button"
+                            onClick={() => setLetterCount(count)}
+                            className={cn(
+                              "rounded-lg border px-4 py-3 text-sm font-black uppercase tracking-wider transition-all",
+                              letterCount === count
+                                ? "border-inside-gold bg-inside-gold text-inside-dark"
+                                : "border-white/10 bg-white/5 text-inside-accent hover:border-white/30"
+                            )}
+                          >
+                            {count} Letter{count > 1 ? "s" : ""}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {letterCount === 1 ? (
+                      <div>
+                        <label className="block text-xs font-black uppercase tracking-widest text-inside-gold mb-2">
+                          Client name to generate
+                        </label>
+                        <input
+                          value={targetClientName}
+                          onChange={(e) => setTargetClientName(e.target.value)}
+                          placeholder="Enter the approved client's name"
+                          className="w-full rounded-lg border border-white/10 bg-inside-gray/70 px-4 py-3 text-inside-accent outline-none transition-all focus:border-inside-gold/70"
+                          required={requiresTargetClientName}
+                        />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-black uppercase tracking-widest text-inside-gold mb-2">
+                            Client 1 name
+                          </label>
+                          <input
+                            value={clientOneName}
+                            onChange={(e) => setClientOneName(e.target.value)}
+                            placeholder="Optional but recommended"
+                            className="w-full rounded-lg border border-white/10 bg-inside-gray/70 px-4 py-3 text-inside-accent outline-none transition-all focus:border-inside-gold/70"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-black uppercase tracking-widest text-inside-gold mb-2">
+                            Client 2 name
+                          </label>
+                          <input
+                            value={clientTwoName}
+                            onChange={(e) => setClientTwoName(e.target.value)}
+                            placeholder="Optional but recommended"
+                            className="w-full rounded-lg border border-white/10 bg-inside-gray/70 px-4 py-3 text-inside-accent outline-none transition-all focus:border-inside-gold/70"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
         {/* Transcript Area */}
         <div className="premium-card p-1">
@@ -121,7 +264,7 @@ export default function CastingForm({ onSubmit, onComplianceCheck, isProcessing,
 
           <button
             type="submit"
-            disabled={isProcessing || !transcript.trim()}
+            disabled={isProcessing || !canSubmit}
             className={cn(
               "px-12 py-4 rounded-full bg-inside-gold text-inside-dark font-black tracking-widest uppercase flex items-center gap-3 transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed shadow-gold-glow",
               isProcessing && "animate-pulse"
@@ -171,4 +314,3 @@ export default function CastingForm({ onSubmit, onComplianceCheck, isProcessing,
     </motion.div>
   );
 }
-

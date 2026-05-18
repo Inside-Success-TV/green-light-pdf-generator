@@ -82,7 +82,10 @@ export default function ResultPreview({
   onResetPdf,
   onRevise,
   isRevamping,
-  onManualEdit 
+  onManualEdit,
+  drafts = [],
+  activeDraftIndex = 0,
+  onSelectDraft,
 }) {
   const [revampInstructions, setRevampInstructions] = useState("");
   const [isEditMode, setIsEditMode] = useState(true); // Default to Edit (Raw Editor) mode
@@ -187,6 +190,37 @@ export default function ResultPreview({
       animate={{ opacity: 1, scale: 1 }}
       className="max-w-6xl mx-auto w-full space-y-6 pb-20"
     >
+      {drafts.length > 1 && (
+        <div className="premium-card p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.25em] text-inside-gold font-black">
+                Multi-client review
+              </p>
+              <p className="text-sm text-inside-accent/55">
+                Review each preview separately before sending approved PDFs.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {drafts.map((draft, index) => (
+                <button
+                  key={draft.id || index}
+                  type="button"
+                  onClick={() => onSelectDraft?.(index)}
+                  className={`px-4 py-2 rounded-lg border text-sm font-black transition-all ${
+                    activeDraftIndex === index
+                      ? 'bg-inside-gold text-inside-dark border-inside-gold'
+                      : 'bg-white/5 text-inside-accent border-white/10 hover:border-white/30'
+                  }`}
+                >
+                  {draft.label || `Client ${index + 1}`}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── TOP BAR ── */}
       <div className="flex flex-col xl:flex-row items-center justify-between gap-4 px-2">
         {/* Left: Show Info */}
