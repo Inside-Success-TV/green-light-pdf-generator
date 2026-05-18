@@ -71,8 +71,8 @@ export default function CastingForm({ onSubmit, onComplianceCheck, isProcessing,
       className="max-w-4xl mx-auto w-full space-y-8"
     >
       <div className="text-center space-y-4">
-        <h1 className="text-5xl font-extrabold tracking-tighter gradient-text">
-          CASTING INTELLIGENCE
+        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter gradient-text">
+          Green Light Letter Generator
         </h1>
         <p className="text-inside-accent/60 text-lg max-w-2xl mx-auto">
           Paste your raw call transcript below. Our AI will analyze the narrative arcs and generate professional production documents.
@@ -141,16 +141,16 @@ export default function CastingForm({ onSubmit, onComplianceCheck, isProcessing,
                 aria-checked={isMultiClient}
                 onClick={() => setIsMultiClient((value) => !value)}
                 className={cn(
-                  "relative h-8 w-16 rounded-full border transition-colors flex-shrink-0",
+                  "relative h-7 w-12 rounded-full border transition-colors flex-shrink-0",
                   isMultiClient
                     ? "bg-inside-gold border-inside-gold"
-                    : "bg-white/10 border-white/15"
+                    : "bg-white/10 border-white/20"
                 )}
               >
                 <span
                   className={cn(
-                    "absolute top-1 h-6 w-6 rounded-full bg-white transition-transform",
-                    isMultiClient ? "translate-x-8" : "translate-x-1"
+                    "absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
+                    isMultiClient ? "translate-x-5" : "translate-x-0"
                   )}
                 />
               </button>
