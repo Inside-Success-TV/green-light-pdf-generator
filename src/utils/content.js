@@ -49,6 +49,7 @@ const cleanTemplateLine = (line) =>
     .replace(/\*\*/g, "")
     .replace(/__/g, "")
     .replace(/^\s*["“”]+|["“”]+\s*$/g, "")
+    .replace(/^\[([^\]]+)\]$/, "$1")
     .trim();
 
 const normalizeNameForCompare = (name) =>
