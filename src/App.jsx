@@ -5,7 +5,9 @@ import CastingForm from "./components/CastingForm";
 import ResultPreview from "./components/ResultPreview";
 import { cleanTranscript } from "./utils/transcript";
 import {
+  getGreenlightLetterTopSectionError,
   preparePdfContent,
+  repairGreenlightLetterTopSection,
   stripHtml,
   unboldOutcomeDisclaimer,
 } from "./utils/content";
@@ -27,6 +29,7 @@ const COMPLIANCE_WEBHOOK_URL =
 // Edit/Revamp Webhook (Workflow 3)
 const EDIT_WEBHOOK_URL =
   import.meta.env.VITE_EDIT_WEBHOOK_URL || STORY_WEBHOOK_URL;
+const GREENLIGHT_ACTION = "Generate Greenlight PDF Letter";
 
 function App() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -107,7 +110,7 @@ function App() {
 
     try {
       const multiClientEnabled =
-        action === "Generate Greenlight PDF Letter" && multiClient?.enabled;
+        action === GREENLIGHT_ACTION && multiClient?.enabled;
       const letterCount = multiClientEnabled ? Number(multiClient.letterCount) || 1 : 1;
       const clientNames = multiClient?.clientNames || [];
       const storyRequests =
@@ -131,6 +134,7 @@ function App() {
             ];
 
       const generatedDrafts = [];
+      const generationWarnings = [];
 
       for (const [index, draftRequest] of storyRequests.entries()) {
         setProcessStatus(
@@ -180,11 +184,19 @@ function App() {
         // Workflow 1 returns the generated story as text
         const storyText = await response.text();
         console.log("Story response length:", storyText.length);
+        let cleanStoryText = unboldOutcomeDisclaimer(storyText);
+
+        if (action === GREENLIGHT_ACTION) {
+          cleanStoryText = repairGreenlightLetterTopSection(cleanStoryText);
+          const topSectionError =
+            getGreenlightLetterTopSectionError(cleanStoryText);
+          if (topSectionError) generationWarnings.push(topSectionError);
+        }
 
         generatedDrafts.push({
           id: `${Date.now()}-${index}`,
           label: draftRequest.label,
-          content: unboldOutcomeDisclaimer(storyText),
+          content: cleanStoryText,
           metadata: {
             multiClient: Boolean(multiClientEnabled),
             letterCount,
@@ -201,6 +213,9 @@ function App() {
 
       setDrafts(generatedDrafts);
       setResult(generatedDrafts[0]?.content || "");
+      if (generationWarnings.length) {
+        setError(generationWarnings[0]);
+      }
     } catch (err) {
       console.error("Error generating story:", err);
       setError(`Failed to generate document: ${err.message}`);
@@ -227,9 +242,18 @@ function App() {
         /^\s*<(!DOCTYPE|html|head|body|div|p|h[1-6]|table|section)/i.test(
           result,
         );
-      const cleanedContent = preparePdfContent(
-        isHtml ? stripHtml(result) : result,
-      );
+      let contentForPdf = isHtml ? stripHtml(result) : result;
+
+      if (currentAction === GREENLIGHT_ACTION) {
+        contentForPdf = repairGreenlightLetterTopSection(contentForPdf);
+        const topSectionError =
+          getGreenlightLetterTopSectionError(contentForPdf);
+        if (topSectionError) {
+          throw new Error(topSectionError);
+        }
+      }
+
+      const cleanedContent = preparePdfContent(contentForPdf);
 
       // Helper to detect show/client names for n8n classification
       const firstLine = cleanedContent.split("\n")[0] || "";
@@ -345,11 +369,19 @@ function App() {
         // Response is plain text — use as-is
       }
 
-      setResult(unboldOutcomeDisclaimer(revisedText));
+      let cleanRevisedText = unboldOutcomeDisclaimer(revisedText);
+      if (actionOverride === GREENLIGHT_ACTION) {
+        cleanRevisedText = repairGreenlightLetterTopSection(cleanRevisedText);
+        const topSectionError =
+          getGreenlightLetterTopSectionError(cleanRevisedText);
+        if (topSectionError) setError(topSectionError);
+      }
+
+      setResult(cleanRevisedText);
       setDrafts((current) =>
         current.map((draft, index) =>
           index === activeDraftIndex
-            ? { ...draft, content: unboldOutcomeDisclaimer(revisedText) }
+            ? { ...draft, content: cleanRevisedText }
             : draft,
         ),
       );
