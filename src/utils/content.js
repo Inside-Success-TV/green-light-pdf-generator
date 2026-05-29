@@ -77,6 +77,27 @@ const getNameFromStorySummary = (line) => {
   return isInvalidClientName(name) ? "" : name;
 };
 
+const isStorySummaryLine = (line) =>
+  /^.+?(?:['’]s)?\s+Story Summary$/i.test(cleanTemplateLine(line));
+
+const getNameFromStoryOpening = (line) => {
+  const cleaned = cleanTemplateLine(line);
+  const patterns = [
+    /^(.{2,90}?)(?:['’]s)\s+(?:journey|story|path|life|career|rise|work)\b/i,
+    /^The story of\s+(.{2,90}?)(?=\s+(?:is|and|embodies|reflects|represents|brings|showcases)\b|[,—-])/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = cleaned.match(pattern);
+    if (!match) continue;
+
+    const name = cleanTemplateLine(match[1]);
+    if (!isInvalidClientName(name)) return name;
+  }
+
+  return "";
+};
+
 const findFirstNonEmptyLine = (lines) =>
   lines.findIndex((line) => cleanTemplateLine(line) !== "");
 
@@ -135,7 +156,7 @@ export const repairGreenlightLetterTopSection = (content) => {
   const storySummaryIndex = findNextLine(
     lines,
     xLineIndex,
-    (line) => Boolean(getNameFromStorySummary(line)),
+    (line) => isStorySummaryLine(line),
     12,
   );
   if (storySummaryIndex === -1) return normalized;
@@ -150,10 +171,20 @@ export const repairGreenlightLetterTopSection = (content) => {
     storySummaryIndex - xLineIndex - 1,
   );
 
+  const storyOpeningIndex = findNextLine(
+    lines,
+    storySummaryIndex,
+    (line) => Boolean(getNameFromStoryOpening(line)),
+    6,
+  );
+
   const clientName =
     existingNameIndex !== -1
       ? cleanTemplateLine(lines[existingNameIndex])
-      : getNameFromStorySummary(lines[storySummaryIndex]);
+      : getNameFromStorySummary(lines[storySummaryIndex]) ||
+        (storyOpeningIndex !== -1
+          ? getNameFromStoryOpening(lines[storyOpeningIndex])
+          : "");
 
   if (isInvalidClientName(clientName)) return normalized;
 
