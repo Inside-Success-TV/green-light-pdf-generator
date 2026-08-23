@@ -1,0 +1,7 @@
+version: 1
+project: green-light-pdf-generator
+publish:
+  - path: README.md
+    type: ProjectOverview
+    title: Green Light Pdf Generator Overview
+    tags: [inside-success, code-generation]
