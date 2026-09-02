@@ -1,0 +1,11 @@
+schema_version: 1.0.0
+project_id: project-green-light-pdf-generator
+display_name: Green Light PDF Generator
+context_epoch: 1
+revision_policy: {development: moving_checkout, evidence: exact_revision}
+repositories:
+  - repository_id: green-light-pdf-generator
+    role: primary
+    workspace: default
+    authority_entrypoints: [README.md, package.json]
+    contract_seams: []
